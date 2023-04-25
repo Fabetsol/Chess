@@ -1,7 +1,5 @@
 import pyxel
 
-SCREEN_SIDE_LENGHT = 16*8
-
 class NotAColor(Exception):pass
 class NotAPiece(Exception):pass
 
@@ -42,102 +40,60 @@ class Pawn(Piece):
     def __init__(self, y:int, x:int, color:int, chessboard) -> None:
         super().__init__("pawn", y, x, color, chessboard)
     
-    def available_moves(self)->list:
+    def available_moves(self, check_risks:bool=True, simulate_ennemy:tuple=None)->list:
 
         infront = (self.y+self.color, self.x)
-        if self.is_on_board(infront) and not self.is_piece(infront):
+        if self.is_on_board(infront) and not self.is_piece(infront) and not infront==simulate_ennemy:
             yield infront
-        
         front_side_1 = (self.y+self.color, self.x-1)
-        if self.is_on_board(front_side_1) and self.is_piece(front_side_1) and self.is_opposite_color(front_side_1):
+        if self.is_on_board(front_side_1) and (self.is_piece(front_side_1) and (self.is_opposite_color(front_side_1)) or front_side_1==simulate_ennemy):
             yield front_side_1
 
         front_side_2 = (self.y+self.color, self.x+1)
-        if self.is_on_board(front_side_2) and self.is_piece(front_side_2) and self.is_opposite_color(front_side_2):
+        if self.is_on_board(front_side_2) and (self.is_piece(front_side_2) and (self.is_opposite_color(front_side_2)) or front_side_2==simulate_ennemy):
             yield front_side_2
 
 class Rook(Piece):
     def __init__(self, y:int, x:int, color:int, chessboard) -> None:
         super().__init__("rook", y, x, color, chessboard)
     
-    def available_moves(self)->list:
-        #up
-        for y in range(1,8):
-            move = (self.y+self.color*y, self.x)
-            if self.is_on_board(move):
-                if not self.is_piece(move):
-                    yield move
-                elif self.is_opposite_color(move):
-                    yield move
-                    break
-                else:
-                    break
-            else:
-                break
-        
-        #down
-        for y in range(1,8):
-            move = (self.y-self.color*y, self.x)
-            if self.is_on_board(move):
-                if not self.is_piece(move):
-                    yield move
-                elif self.is_opposite_color(move):
-                    yield move
-                    break
-                else:
-                    break
-            else:
-                break
-        
-        #right
-        for x in range(1,8):
-            move = (self.y, self.x+x)
-            if self.is_on_board(move):
-                if not self.is_piece(move):
-                    yield move
-                elif self.is_opposite_color(move):
-                    yield move
-                    break
-                else:
-                    break
-            else:
-                break
-        
-        for x in range(1,8):
-            move = (self.y, self.x-x)
-            if self.is_on_board(move):
-                if not self.is_piece(move):
-                    yield move
-                elif self.is_opposite_color(move):
-                    yield move
-                    break
-                else:
-                    break
-            else:
-                break
+    def available_moves(self, check_risks:bool=True, simulate_ennemy:tuple=None)->list:
+        for y,x in zip([1,0,-1,0],[0,1,0,-1]):
+                for i in range(1,8):
+                    move = (self.y+i*y, self.x+i*x)
+                    if self.is_on_board(move):
+                        if not self.is_piece(move):
+                            yield move
+                        elif self.is_opposite_color(move) or move==simulate_ennemy:
+                            yield move
+                            break
+                        else:
+                            break
+                    else:
+                        break
 
 class Knight(Piece):
     def __init__(self, y:int, x:int, color:int, chessboard) -> None:
         super().__init__("knight", y, x, color, chessboard)
     
-    def available_moves(self)->list:
+    def available_moves(self, check_risks:bool=True, simulate_ennemy:tuple=None)->list:
         for y,x in zip([2,2,1,-1,-2,-2,-1,1],[-1,1,2,2,1,-1,-2,-2]):
             move = (self.y+y,self.x+x)
-            if self.is_on_board(move) and (not self.is_piece(move) or self.is_opposite_color(move)):
+            if self.is_on_board(move) and (not self.is_piece(move) or self.is_opposite_color(move) or move==simulate_ennemy):
                 yield move
 
 class Bishop(Piece):
     def __init__(self, y:int, x:int, color:int, chessboard) -> None:
         super().__init__("bishop", y, x, color, chessboard)
     
-    def available_moves(self)->list:
+    def available_moves(self, check_risks:bool=True, simulate_ennemy:tuple=None)->list:
         for y,x in zip([1,1,-1,-1],[1,-1,-1,1]):
             for i in range(1,8):
                 move = (self.y+i*y, self.x+i*x)
                 if self.is_on_board(move):
                     if not self.is_piece(move):
                         yield move
-                    elif self.is_opposite_color(move):
+                    elif self.is_opposite_color(move) or move==simulate_ennemy:
                         yield move
                         break
                     else:
@@ -149,79 +105,31 @@ class King(Piece):
     def __init__(self, y:int, x:int, color:int, chessboard) -> None:
         super().__init__("king", y, x, color, chessboard)
     
-    def available_moves(self)->list:
+    def is_at_risk(self, position)->False:
+        for y in range(len(self.chessboard.board)):
+            for x in range(len(self.chessboard.board[y])):
+                if type(self.chessboard.board[y][x]) != int and self.is_opposite_color((self.chessboard.board[y][x].y, self.chessboard.board[y][x].x)) and position in list(self.chessboard.board[y][x].available_moves(check_risks=False, simulate_ennemy=position)):
+                    return True
+        return False
+
+    def available_moves(self, check_risks:bool=True, simulate_ennemy:tuple=None)->list:
         for y,x in zip([1,1,1,0,-1,-1,-1,0],[-1,0,1,1,1,0,-1,-1]):
             move = (self.y+y,self.x+x)
-            if self.is_on_board(move) and (not self.is_piece(move) or self.is_opposite_color(move)):
+            if self.is_on_board(move) and (not self.is_piece(move) or self.is_opposite_color(move) or move==simulate_ennemy) and ((not check_risks) or not self.is_at_risk(move)):
                 yield move
 
 class Queen(Piece):
     def __init__(self, y:int, x:int, color:int, chessboard) -> None:
         super().__init__("queen", y, x, color, chessboard)
     
-    def available_moves(self)->list:
-        #up
-        for y in range(1,8):
-            move = (self.y+self.color*y, self.x)
-            if self.is_on_board(move):
-                if not self.is_piece(move):
-                    yield move
-                elif self.is_opposite_color(move):
-                    yield move
-                    break
-                else:
-                    break
-            else:
-                break
-        
-        #down
-        for y in range(1,8):
-            move = (self.y-self.color*y, self.x)
-            if self.is_on_board(move):
-                if not self.is_piece(move):
-                    yield move
-                elif self.is_opposite_color(move):
-                    yield move
-                    break
-                else:
-                    break
-            else:
-                break
-        
-        #right
-        for x in range(1,8):
-            move = (self.y, self.x+x)
-            if self.is_on_board(move):
-                if not self.is_piece(move):
-                    yield move
-                elif self.is_opposite_color(move):
-                    yield move
-                    break
-                else:
-                    break
-            else:
-                break
-        
-        for x in range(1,8):
-            move = (self.y, self.x-x)
-            if self.is_on_board(move):
-                if not self.is_piece(move):
-                    yield move
-                elif self.is_opposite_color(move):
-                    yield move
-                    break
-                else:
-                    break
-            else:
-                break
-    
-        for y,x in zip([1,1,-1,-1],[1,-1,-1,1]):
+    def available_moves(self, check_risks:bool=True, simulate_ennemy:tuple=None)->list:
+        for y,x in zip([1,1,1,0,-1,-1,-1,0],[-1,0,1,1,1,0,-1,-1]):
                 for i in range(1,8):
                     move = (self.y+i*y, self.x+i*x)
                     if self.is_on_board(move):
                         if not self.is_piece(move):
                             yield move
-                        elif self.is_opposite_color(move):
+                        elif self.is_opposite_color(move) or move==simulate_ennemy:
                             yield move
                             break
                         else:
@@ -230,13 +138,14 @@ class Queen(Piece):
                         break
 
 class Chessboard:
-    def __init__(self, screen_lenght) -> None:
+    def __init__(self) -> None:
         self.set_board()
         self.playable = [[0 for i in range(8)] for j in range(8)]
 
         self.white_turn = True
+        self.last_clik = None
 
-        pyxel.init(screen_lenght, screen_lenght, "Chess")
+        pyxel.init(16*8, 16*8, "Chess")
         pyxel.load("ressources.pyxres")
         pyxel.mouse(True)
 
@@ -269,12 +178,14 @@ class Chessboard:
             if self.playable[y][x] == 1:
                 self.board[y][x] = type(self.selected_piece)(y,x, self.selected_piece.color, self)
                 self.board[self.selected_piece.y][self.selected_piece.x] = 0
+                
                 self.remove_all_1()
-
+                self.last_clik = None
                 self.white_turn = not self.white_turn
 
             if type(self.board[y][x]) != int:
                 if (self.board[y][x].color<0)==self.white_turn:
+                    self.last_clik = (y,x)
                     self.remove_all_1()
                     self.selected_piece = self.board[y][x]
                     for move in list(self.selected_piece.available_moves()):
@@ -291,6 +202,8 @@ class Chessboard:
                 else:
                     pyxel.blt(x*16,y*16,0, 16,0,16,16)
                 
+                if (y,x) == self.last_clik:
+                    pyxel.blt(x*16,y*16,0, 48,0,16,16, 10)
                 if self.playable[y][x] == 1:
                     pyxel.blt(x*16,y*16,0, 32,0,16,16, 10)
 
@@ -309,4 +222,4 @@ class Chessboard:
                     elif type(self.board[y][x]) == Queen:
                         pyxel.blt(x*16,y*16,0, 32+color,48,16,16, 10)
 
-chessboard = Chessboard(SCREEN_SIDE_LENGHT)
+chessboard = Chessboard()
